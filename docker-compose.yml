@@ -7,6 +7,7 @@ services:
       DOCMIND_OLLAMA_HOST: http://ollama:11434
       DOCMIND_EMBED_MODEL: nomic-embed-text
       DOCMIND_LLM_MODEL: qwen3:8b
+      DOCMIND_LOCAL_ONLY: "true"
     volumes:
       - ./index:/app/index
     depends_on:

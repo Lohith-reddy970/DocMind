@@ -5,12 +5,14 @@ from __future__ import annotations
 from collections.abc import Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
+from urllib.parse import urlparse
 
 from docmind.chunking import Chunk, chunk_documents
 from docmind.config import Settings
 from docmind.documents import Document, load_path
 from docmind.embeddings import OllamaEmbedder
 from docmind.llm import OllamaLLM, build_prompt
+from docmind.netguard import EGRESS, is_local_host
 from docmind.vector_store import VectorStore
 
 
@@ -53,6 +55,7 @@ class RAGEngine:
             timeout=self.settings.request_timeout,
             query_prefix=self.settings.query_prefix,
             doc_prefix=self.settings.doc_prefix,
+            local_only=self.settings.local_only,
         )
         self.llm = llm or OllamaLLM(
             host=self.settings.ollama_host,
@@ -60,6 +63,7 @@ class RAGEngine:
             timeout=self.settings.request_timeout,
             options=self.settings.llm_options(),
             think=self.settings.think,
+            local_only=self.settings.local_only,
         )
         self.store = store or VectorStore()
         if autoload and store is None:
@@ -137,4 +141,19 @@ class RAGEngine:
             "sources": len({chunk.source for chunk in self.store.chunks()}),
             "embed_model": self.settings.embed_model,
             "llm_model": self.settings.llm_model,
+        }
+
+    def network_report(self) -> dict:
+        """Describe every outbound destination DocMind can or did contact."""
+        host = urlparse(self.settings.ollama_host).hostname
+        return {
+            "local_only": self.settings.local_only,
+            "ollama_host": self.settings.ollama_host,
+            "host_is_local": is_local_host(host),
+            "blocked_requests": EGRESS.blocked,
+            "endpoints": EGRESS.snapshot(),
+            "message": (
+                "Only the configured Ollama server is contacted. "
+                "No telemetry, analytics, or cloud APIs."
+            ),
         }

@@ -82,6 +82,16 @@ def test_sources_endpoint_lists_uploaded_file(client):
     assert sources[0]["chunks"] >= 1
 
 
+def test_network_endpoint_reports_local_only(client):
+    c, _ = client
+    data = c.get("/network").json()
+    assert data["local_only"] is True
+    assert data["host_is_local"] is True
+    assert data["blocked_requests"] == 0
+    assert isinstance(data["endpoints"], list)
+    assert "Ollama" in data["message"]
+
+
 def test_health_endpoint(client):
     c, _ = client
     assert c.get("/health").json() == {"status": "ok"}

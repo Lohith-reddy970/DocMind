@@ -65,6 +65,7 @@ class Settings:
     think: bool | None = field(default_factory=lambda: _env_bool("THINK", False))
     query_prefix: str | None = field(default_factory=lambda: _env_opt("QUERY_PREFIX", None))
     doc_prefix: str | None = field(default_factory=lambda: _env_opt("DOC_PREFIX", None))
+    local_only: bool = field(default_factory=lambda: bool(_env_bool("LOCAL_ONLY", True)))
     index_dir: Path = field(default_factory=lambda: Path(_env("INDEX_DIR", "index")))
     request_timeout: float = field(default_factory=lambda: float(_env("REQUEST_TIMEOUT", "120")))
 

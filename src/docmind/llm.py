@@ -9,6 +9,7 @@ from collections.abc import Iterator
 import httpx
 
 from docmind.embeddings import OllamaError
+from docmind.netguard import EGRESS, EgressBlockedError, EgressLog, make_request_hook
 
 SYSTEM_PROMPT = (
     "You are DocMind, a helpful assistant that answers questions using ONLY the provided context.\n"
@@ -78,12 +79,16 @@ class OllamaLLM:
         timeout: float = 120.0,
         options: dict | None = None,
         think: bool | None = None,
+        local_only: bool = True,
+        egress: EgressLog | None = None,
     ):
         self.host = host.rstrip("/")
         self.model = model
         self.timeout = timeout
         self.options = options or dict(DEFAULT_OPTIONS)
         self.think = think
+        self.egress = egress or EGRESS
+        self._hooks = {"request": [make_request_hook("generation", local_only, self.egress)]}
 
     def _payload(self, prompt: str, system: str, stream: bool) -> dict:
         payload = {
@@ -103,10 +108,12 @@ class OllamaLLM:
         """Generate a complete answer for ``prompt``."""
         payload = self._payload(prompt, system, stream=False)
         try:
-            with httpx.Client(timeout=self.timeout) as client:
+            with httpx.Client(timeout=self.timeout, event_hooks=self._hooks) as client:
                 response = client.post(f"{self.host}/api/chat", json=payload)
                 response.raise_for_status()
                 data = response.json()
+        except EgressBlockedError as exc:
+            raise OllamaError(str(exc)) from exc
         except httpx.HTTPError as exc:
             raise OllamaError(
                 f"Failed to reach Ollama chat model '{self.model}' at {self.host}. "
@@ -123,7 +130,7 @@ class OllamaLLM:
         payload = self._payload(prompt, system, stream=True)
         try:
             with (
-                httpx.Client(timeout=self.timeout) as client,
+                httpx.Client(timeout=self.timeout, event_hooks=self._hooks) as client,
                 client.stream("POST", f"{self.host}/api/chat", json=payload) as response,
             ):
                 response.raise_for_status()
@@ -136,6 +143,8 @@ class OllamaLLM:
                         yield piece
                     if event.get("done"):
                         break
+        except EgressBlockedError as exc:
+            raise OllamaError(str(exc)) from exc
         except httpx.HTTPError as exc:
             raise OllamaError(
                 f"Failed to reach Ollama chat model '{self.model}' at {self.host}."

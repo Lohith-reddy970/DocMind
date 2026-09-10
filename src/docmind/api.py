@@ -54,6 +54,11 @@ def stats() -> dict:
     return engine.stats()
 
 
+@app.get("/network")
+def network() -> dict:
+    return engine.network_report()
+
+
 @app.get("/sources")
 def sources() -> dict:
     counts: dict[str, int] = {}
