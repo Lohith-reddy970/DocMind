@@ -1,0 +1,23 @@
+services:
+  docmind:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      DOCMIND_OLLAMA_HOST: http://ollama:11434
+      DOCMIND_EMBED_MODEL: nomic-embed-text
+      DOCMIND_LLM_MODEL: qwen3:8b
+    volumes:
+      - ./index:/app/index
+    depends_on:
+      - ollama
+
+  ollama:
+    image: ollama/ollama:latest
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+
+volumes:
+  ollama-data:

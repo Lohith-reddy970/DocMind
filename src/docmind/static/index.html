@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DocMind - Local RAG Assistant</title>
+  <style>
+    :root {
+      --bg: #0f1117;
+      --panel: #171a23;
+      --panel-2: #1f2430;
+      --border: #2a3040;
+      --text: #e6e9ef;
+      --muted: #8b93a7;
+      --accent: #6d8cff;
+      --accent-2: #46d5b3;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+      background: var(--bg); color: var(--text); height: 100vh; display: flex; flex-direction: column;
+    }
+    header {
+      display: flex; align-items: center; gap: 12px; padding: 14px 22px;
+      border-bottom: 1px solid var(--border); background: var(--panel);
+    }
+    header h1 { font-size: 18px; margin: 0; font-weight: 600; }
+    header .tag { font-size: 12px; color: var(--muted); }
+    .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--accent-2); box-shadow: 0 0 8px var(--accent-2); }
+    .layout { flex: 1; display: grid; grid-template-columns: 320px 1fr; min-height: 0; }
+    aside {
+      border-right: 1px solid var(--border); background: var(--panel); padding: 18px;
+      display: flex; flex-direction: column; gap: 16px; overflow-y: auto;
+    }
+    aside h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 0; }
+    .card { background: var(--panel-2); border: 1px solid var(--border); border-radius: 10px; padding: 14px; }
+    .stat { display: flex; justify-content: space-between; font-size: 13px; padding: 3px 0; }
+    .stat span:last-child { color: var(--accent); font-variant-numeric: tabular-nums; }
+    textarea, input {
+      width: 100%; background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+      color: var(--text); padding: 9px 10px; font-family: inherit; font-size: 13px; resize: vertical;
+    }
+    button {
+      cursor: pointer; border: none; border-radius: 8px; padding: 9px 12px; font-size: 13px;
+      font-weight: 600; background: var(--accent); color: #0b0e14; transition: opacity .15s;
+    }
+    button:hover { opacity: .88; }
+    button.ghost { background: transparent; border: 1px solid var(--border); color: var(--text); }
+    button:disabled { opacity: .5; cursor: not-allowed; }
+    .row { display: flex; gap: 8px; }
+    main { display: flex; flex-direction: column; min-height: 0; }
+    #messages { flex: 1; overflow-y: auto; padding: 26px 30px; display: flex; flex-direction: column; gap: 18px; }
+    .msg { max-width: 780px; line-height: 1.55; font-size: 14.5px; white-space: pre-wrap; }
+    .msg.user { align-self: flex-end; background: var(--accent); color: #0b0e14; padding: 10px 14px; border-radius: 12px 12px 2px 12px; }
+    .msg.bot { align-self: flex-start; }
+    .msg.bot .bubble { background: var(--panel-2); border: 1px solid var(--border); padding: 12px 15px; border-radius: 12px 12px 12px 2px; }
+    .sources { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 6px; }
+    .chip {
+      font-size: 11.5px; background: rgba(109,140,255,.12); color: var(--accent);
+      border: 1px solid rgba(109,140,255,.3); border-radius: 999px; padding: 3px 9px;
+      cursor: pointer;
+    }
+    .chip:hover { background: rgba(109,140,255,.24); }
+    .ctx {
+      width: 100%; font-size: 12.5px; color: var(--muted); background: var(--panel);
+      border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px;
+      white-space: pre-wrap; max-height: 160px; overflow-y: auto;
+    }
+    .composer { border-top: 1px solid var(--border); background: var(--panel); padding: 16px 30px; display: flex; gap: 10px; }
+    .composer input { flex: 1; }
+    .empty { color: var(--muted); margin: auto; text-align: center; font-size: 14px; }
+    .log { font-size: 12px; color: var(--muted); min-height: 16px; }
+    .hint { font-size: 11.5px; color: var(--muted); margin-top: 8px; }
+    .file-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 7px; }
+    .file-list li { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; font-size: 12.5px; }
+    .file-list .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .file-list .count { color: var(--muted); font-variant-numeric: tabular-nums; flex-shrink: 0; }
+    .file-list .empty-list { color: var(--muted); font-size: 12px; display: block; }
+    #toasts { position: fixed; right: 18px; bottom: 18px; display: flex; flex-direction: column; gap: 10px; z-index: 50; }
+    .toast {
+      min-width: 230px; max-width: 350px; background: var(--panel-2); border: 1px solid var(--border);
+      border-left: 3px solid var(--accent); border-radius: 10px; padding: 11px 13px; font-size: 13px;
+      box-shadow: 0 10px 28px rgba(0,0,0,.4); animation: slidein .22s ease;
+    }
+    .toast.ok { border-left-color: var(--accent-2); }
+    .toast.warn { border-left-color: #e8b34b; }
+    .toast.error { border-left-color: #e5686d; }
+    .toast .t-title { font-weight: 600; }
+    .toast .t-body { color: var(--muted); font-size: 12px; margin-top: 2px; }
+    .toast.hide { animation: fadeout .3s ease forwards; }
+    @keyframes slidein { from { transform: translateY(10px); opacity: 0; } to { transform: none; opacity: 1; } }
+    @keyframes fadeout { to { opacity: 0; transform: translateY(6px); } }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="dot"></div>
+    <h1>DocMind</h1>
+    <span class="tag">Local RAG &middot; Ollama &middot; no data leaves your machine</span>
+  </header>
+
+  <div class="layout">
+    <aside>
+      <h2>Knowledge base</h2>
+      <div class="card" id="stats">
+        <div class="stat"><span>Chunks</span><span id="s-chunks">-</span></div>
+        <div class="stat"><span>Sources</span><span id="s-sources">-</span></div>
+        <div class="stat"><span>Embed model</span><span id="s-embed">-</span></div>
+        <div class="stat"><span>LLM</span><span id="s-llm">-</span></div>
+      </div>
+
+      <h2>Upload from this computer</h2>
+      <div class="card">
+        <div class="row">
+          <button id="pick-files">Choose files</button>
+          <button class="ghost" id="pick-folder">Choose folder</button>
+        </div>
+        <input type="file" id="file-input" multiple hidden />
+        <input type="file" id="folder-input" webkitdirectory hidden />
+        <div class="hint">Supports .txt, .md, .pdf</div>
+      </div>
+
+      <h2>In the knowledge base</h2>
+      <div class="card">
+        <ul class="file-list" id="file-list"><li class="empty-list">Loading...</li></ul>
+      </div>
+
+      <h2>Add a server folder path</h2>
+      <div class="card">
+        <input id="path" placeholder="e.g. data/sample_docs" />
+        <div class="row" style="margin-top:8px">
+          <button id="ingest-path">Ingest</button>
+          <button class="ghost" id="reset">Reset</button>
+        </div>
+      </div>
+
+      <h2>Add text</h2>
+      <div class="card">
+        <textarea id="rawtext" rows="4" placeholder="Paste notes, an FAQ, a spec..."></textarea>
+        <div class="row" style="margin-top:8px">
+          <input id="rawname" placeholder="source name" style="flex:1" />
+          <button id="ingest-text">Add</button>
+        </div>
+      </div>
+      <div class="log" id="log"></div>
+    </aside>
+
+    <main>
+      <div id="messages">
+        <div class="empty">Ingest some documents, then ask a question about them.</div>
+      </div>
+      <div class="composer">
+        <input id="question" placeholder="Ask something about your documents..." autocomplete="off" />
+        <button id="send">Send</button>
+      </div>
+    </main>
+  </div>
+
+  <div id="toasts"></div>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const messages = $("messages");
+
+    async function refreshStats() {
+      try {
+        const s = await (await fetch("/stats")).json();
+        $("s-chunks").textContent = s.chunks;
+        $("s-sources").textContent = s.sources;
+        $("s-embed").textContent = s.embed_model;
+        $("s-llm").textContent = s.llm_model;
+      } catch (e) { log("Stats unavailable"); }
+      refreshSources();
+    }
+
+    async function refreshSources() {
+      try {
+        const { sources } = await (await fetch("/sources")).json();
+        const list = $("file-list");
+        list.innerHTML = "";
+        if (!sources.length) {
+          const li = document.createElement("li");
+          li.className = "empty-list";
+          li.textContent = "No files indexed yet.";
+          list.appendChild(li);
+          return;
+        }
+        sources.forEach((s) => {
+          const li = document.createElement("li");
+          const name = document.createElement("span");
+          name.className = "name";
+          name.textContent = s.name.split(/[\\/]/).pop();
+          name.title = s.name;
+          const count = document.createElement("span");
+          count.className = "count";
+          count.textContent = `${s.chunks} chunk${s.chunks === 1 ? "" : "s"}`;
+          li.appendChild(name);
+          li.appendChild(count);
+          list.appendChild(li);
+        });
+      } catch (e) { /* stats card already reports failures */ }
+    }
+
+    function toast(title, body = "", kind = "ok") {
+      const el = document.createElement("div");
+      el.className = `toast ${kind}`;
+      const t = document.createElement("div");
+      t.className = "t-title";
+      t.textContent = title;
+      el.appendChild(t);
+      if (body) {
+        const b = document.createElement("div");
+        b.className = "t-body";
+        b.textContent = body;
+        el.appendChild(b);
+      }
+      $("toasts").appendChild(el);
+      setTimeout(() => {
+        el.classList.add("hide");
+        setTimeout(() => el.remove(), 320);
+      }, 3600);
+    }
+
+    function log(msg) { $("log").textContent = msg; }
+
+    function addUser(text) {
+      const el = document.createElement("div");
+      el.className = "msg user";
+      el.textContent = text;
+      messages.appendChild(el);
+      messages.scrollTop = messages.scrollHeight;
+    }
+
+    function addBot() {
+      const wrap = document.createElement("div");
+      wrap.className = "msg bot";
+      const bubble = document.createElement("div");
+      bubble.className = "bubble";
+      const sources = document.createElement("div");
+      sources.className = "sources";
+      wrap.appendChild(bubble);
+      wrap.appendChild(sources);
+      messages.appendChild(wrap);
+      return { bubble, sources };
+    }
+
+    async function send() {
+      const input = $("question");
+      const question = input.value.trim();
+      if (!question) return;
+      const empty = messages.querySelector(".empty");
+      if (empty) empty.remove();
+      input.value = "";
+      addUser(question);
+      const { bubble, sources } = addBot();
+      bubble.textContent = "...";
+
+      const response = await fetch("/chat/stream", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ question }),
+      });
+
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({ detail: "Request failed" }));
+        bubble.textContent = "Error: " + err.detail;
+        return;
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      bubble.textContent = "";
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const parts = buffer.split("\n\n");
+        buffer = parts.pop();
+        for (const part of parts) {
+          if (!part.startsWith("data:")) continue;
+          const payload = JSON.parse(part.slice(5).trim());
+          if (payload.token) bubble.textContent += payload.token;
+          if (payload.sources) {
+            payload.sources.forEach((s) => {
+              const chip = document.createElement("span");
+              chip.className = "chip";
+              chip.textContent = `${s.source.split(/[\\/]/).pop()} · ${s.score.toFixed(2)}`;
+              chip.title = "Click to view the retrieved context";
+              const ctx = document.createElement("div");
+              ctx.className = "ctx";
+              ctx.hidden = true;
+              ctx.textContent = s.text;
+              chip.addEventListener("click", () => { ctx.hidden = !ctx.hidden; });
+              sources.appendChild(chip);
+              sources.appendChild(ctx);
+            });
+          }
+          messages.scrollTop = messages.scrollHeight;
+        }
+      }
+      if (!sources.children.length) sources.remove();
+      refreshStats();
+    }
+
+    async function post(url, body) {
+      log("Working...");
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        log(`Indexed ${data.ingested} chunks`);
+        toast("Indexed", `${data.ingested} chunk${data.ingested === 1 ? "" : "s"} added`);
+      } else {
+        log(`Error: ${data.detail}`);
+        toast("Ingest failed", String(data.detail), "error");
+      }
+      refreshStats();
+    }
+
+    $("send").addEventListener("click", send);
+    $("question").addEventListener("keydown", (e) => { if (e.key === "Enter") send(); });
+    $("ingest-path").addEventListener("click", () => {
+      const path = $("path").value.trim();
+      if (path) post("/ingest/path", { path });
+    });
+
+    async function uploadFiles(input) {
+      const files = input.files;
+      if (!files || !files.length) return;
+      const form = new FormData();
+      for (const file of files) form.append("files", file, file.webkitRelativePath || file.name);
+      log(`Uploading ${files.length} file(s)...`);
+      try {
+        const res = await fetch("/ingest/upload", { method: "POST", body: form });
+        const data = await res.json();
+        if (!res.ok) {
+          log(`Error: ${data.detail}`);
+          toast("Upload failed", String(data.detail), "error");
+          return;
+        }
+        const chunks = `${data.ingested} chunk${data.ingested === 1 ? "" : "s"}`;
+        const files = `${data.files} file${data.files === 1 ? "" : "s"}`;
+        log(`Indexed ${chunks} from ${files}`);
+        toast(`Uploaded ${files}`, `Indexed ${chunks}`, data.files ? "ok" : "warn");
+        if (data.skipped && data.skipped.length) {
+          const names = data.skipped.map((n) => n.split(/[\\/]/).pop()).join(", ");
+          toast("Skipped unsupported files", names, "warn");
+        }
+        refreshStats();
+      } catch (e) {
+        log(`Upload failed: ${e.message}`);
+        toast("Upload failed", e.message, "error");
+      } finally {
+        input.value = "";
+      }
+    }
+
+    $("pick-files").addEventListener("click", () => $("file-input").click());
+    $("pick-folder").addEventListener("click", () => $("folder-input").click());
+    $("file-input").addEventListener("change", (e) => uploadFiles(e.target));
+    $("folder-input").addEventListener("change", (e) => uploadFiles(e.target));
+    $("ingest-text").addEventListener("click", () => {
+      const text = $("rawtext").value.trim();
+      const source = $("rawname").value.trim() || "inline";
+      if (text) { post("/ingest/text", { text, source }); $("rawtext").value = ""; }
+    });
+    $("reset").addEventListener("click", async () => {
+      await fetch("/reset", { method: "POST" });
+      log("Index cleared");
+      toast("Knowledge base cleared", "All indexed chunks removed", "warn");
+      refreshStats();
+    });
+
+    refreshStats();
+  </script>
+</body>
+</html>

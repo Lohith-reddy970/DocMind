@@ -1,0 +1,30 @@
+Retrieval-Augmented Generation (RAG) in plain English
+
+What is RAG?
+RAG is a technique that combines a search system with a large language model. Instead
+of relying only on what the model memorized during training, RAG first retrieves
+relevant passages from a knowledge base and then asks the model to answer using those
+passages. This grounds the answer in real, up-to-date text.
+
+Why use RAG?
+1. Freshness: the knowledge base can be updated without retraining the model.
+2. Privacy: documents can stay on local hardware when using a local model.
+3. Cost: retrieval is cheap compared to fine-tuning a large model.
+4. Traceability: every answer can cite the exact source chunks it used.
+
+The main pipeline stages
+- Ingestion: load documents (text, Markdown, PDF) and split them into chunks.
+- Embedding: convert each chunk into a numeric vector with an embedding model.
+- Indexing: store vectors in a vector database for fast similarity search.
+- Retrieval: embed the user question and fetch the nearest chunks by cosine similarity.
+- Generation: pass the retrieved chunks and the question to the language model.
+
+Common failure modes
+- Chunks that are too large dilute relevance; chunks that are too small lose context.
+- Overlapping chunks help preserve meaning across boundaries.
+- If retrieval returns irrelevant text, the model may hallucinate. Always show sources.
+
+Embedding models
+An embedding model maps text to a fixed-length vector such that semantically similar
+texts are close in vector space. Nomic Embed Text produces 768-dimensional vectors and
+is a popular local, open embedding model.
